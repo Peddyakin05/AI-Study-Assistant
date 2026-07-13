@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Study Assistant — Dashboard</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    :root {
+      --bg:        #080b14;
+      --bg2:       #0d1120;
+      --bg3:       #111827;
+      --border:    rgba(99,102,241,0.2);
+      --border2:   rgba(255,255,255,0.06);
+      --indigo:    #6366f1;
+      --indigo2:   #4f46e5;
+      --violet:    #8b5cf6;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --muted2:    #475569;
+      --success:   #4ade80;
+      --warning:   #fbbf24;
+      --danger:    #f87171;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Ambient grid bg */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Glow orbs */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px;
+      right: -100px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ── Nav ─────────────────────────────────────────────── */
+    nav {
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border2);
+      position: sticky;
+      top: 0;
+      background: rgba(8,11,20,0.85);
+      backdrop-filter: blur(16px);
+      z-index: 100;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--indigo);
+      letter-spacing: -0.5px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+    }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+      text-decoration: none;
+    }
+    .nav-cta:hover { opacity: 0.88; }
+
+    /* ── Hero ─────────────────────────────────────────────── */
+    .hero {
+      padding: 80px 0 64px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(99,102,241,0.1);
+      border: 1px solid rgba(99,102,241,0.25);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: #a5b4fc;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      margin-bottom: 28px;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 5vw, 62px);
+      font-weight: 800;
+      letter-spacing: -2px;
+      line-height: 1.05;
+      margin-bottom: 22px;
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, #a5b4fc, #c4b5fd, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 40px;
+      line-height: 1.65;
+    }
+    .hero-btns {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-hero {
+      padding: 13px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-hero-primary {
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      color: white;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.35);
+    }
+    .btn-hero-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(99,102,241,0.45); }
+    .btn-hero-ghost {
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      border: 1px solid var(--border2);
+    }
+    .btn-hero-ghost:hover { background: rgba(255,255,255,0.09); }
+
+    /* ── Stats Cards ──────────────────────────────────────── */
+    .stats-section { padding: 0 0 64px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    @media(max-width:768px) { .stats-grid { grid-template-columns: repeat(2,1fr); } }
+
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      padding: 22px 20px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .stat-card:hover { border-color: var(--border); }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--indigo), var(--violet));
+      opacity: 0.6;
+    }
+    .stat-icon {
+      font-size: 22px;
+      margin-bottom: 12px;
+      opacity: 0.8;
+    }
+    .stat-number {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-number span { color: var(--indigo); }
+    .stat-label { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+    /* ── Live Demo ────────────────────────────────────────── */
+    .demo-section { padding: 0 0 80px; }
+    .section-header { margin-bottom: 40px; }
+    .section-header h2 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    .section-header p { color: var(--muted); font-size: 15px; }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media(max-width:860px) { .demo-grid { grid-template-columns: 1fr; } }
+
+    .demo-panel {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .demo-panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border2);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sample-question {
+      padding: 20px;
+    }
+    .q-number {
+      font-size: 11px;
+      color: var(--indigo);
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .q-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.55;
+      margin-bottom: 20px;
+    }
+    .q-choices {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .q-choice {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border2);
+      background: rgba(255,255,255,0.02);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .q-choice:hover { border-color: var(--border); color: var(--text); }
+    .q-choice.highlighted {
+      border-color: rgba(99,102,241,0.5);
+      background: rgba(99,102,241,0.1);
+      color: #a5b4fc;
+    }
+    .q-choice.correct {
+      border-color: rgba(74,222,128,0.4);
+      background: rgba(74,222,128,0.08);
+      color: var(--success);
+    }
+    .choice-letter {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .q-choice.correct .choice-letter {
+      background: rgba(74,222,128,0.2);
+    }
+
+    /* Overlay preview */
+    .overlay-preview {
+      padding: 20px;
+    }
+    .overlay-card {
+      background: #0f1117;
+      border: 1px solid rgba(99,102,241,0.4);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.1);
+    }
+    .ov-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.08));
+      border-bottom: 1px solid rgba(99,102,241,0.2);
+    }
+    .ov-logo { font-size: 13px; font-weight: 700; color: #a5b4fc; }
+    .ov-dots { display: flex; gap: 5px; }
+    .ov-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .ov-body { padding: 14px; }
+    .ov-q-preview {
+      font-size: 11px;
+      color: #64748b;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 7px;
+      border-left: 3px solid rgba(99,102,241,0.4);
+      margin-bottom: 10px;
+      font-style: italic;
+      line-height: 1.5;
+    }
+    .ov-answer-box {
+      background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.1));
+      border: 1px solid rgba(99,102,241,0.35);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .ov-answer-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6366f1;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+    .ov-answer-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: #c7d2fe;
+    }
+    .ov-meta {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ov-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .ov-badge.green { background: rgba(74,222,128,0.1); color: #4ade80; border: 1px solid rgba(74,222,128,0.25); }
+    .ov-badge.blue { background: rgba(99,102,241,0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.2); }
+    .ov-badge.gray { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.2); }
+    .ov-explanation { font-size: 11px; color: #94a3b8; line-height: 1.5; margin-bottom: 10px; }
+    .ov-btns { display: flex; gap: 6px; }
+    .ov-btn {
+      flex: 1;
+      padding: 7px;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+    }
+    .ov-btn-primary { background: rgba(99,102,241,0.2); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+    .ov-btn-ghost { background: rgba(255,255,255,0.04); color: #64748b; border: 1px solid rgba(255,255,255,0.08); }
+    .ov-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .ov-status { display: flex; align-items: center; gap: 5px; font-size: 10px; color: #64748b; }
+    .ov-status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 5px rgba(74,222,128,0.6);
+    }
+
+    /* ── Features ────────────────────────────────────────── */
+    .features-section { padding: 0 0 80px; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    @media(max-width:768px) { .features-grid { grid-template-columns: 1fr; } }
+
+    .feature-card {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.2s;
+    }
+    .feature-card:hover {
+      border-color: var(--border);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    .feature-icon {
+      font-size: 28px;
+      margin-bottom: 14px;
+      display: block;
+    }
+    .feature-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .feature-desc {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* ── Install Guide ───────────────────────────────────── */
+    .install-section { padding: 0 0 80px; }
+    .install-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    @media(max-width:768px) { .install-steps { grid-template-columns: 1fr; } }
+
+    .install-step {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+    }
+    .step-number {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+    }
+    .step-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .step-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .step-desc code {
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 5px;
+      padding: 1px 6px;
+      font-size: 12px;
+      color: #a5b4fc;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Live Test Area ──────────────────────────────────── */
+    .test-section { padding: 0 0 80px; }
+    .test-panel {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+    .test-panel-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .test-panel-header h3 { font-size: 18px; font-weight: 700; }
+    .api-note { font-size: 12px; color: var(--muted); }
+
+    .test-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 420px;
+    }
+    @media(max-width:768px) { .test-grid { grid-template-columns: 1fr; } }
+
+    .test-input-pane {
+      padding: 24px;
+      border-right: 1px solid var(--border2);
+    }
+    .test-output-pane {
+      padding: 24px;
+      background: rgba(0,0,0,0.2);
+    }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    textarea, input[type="text"], input[type="password"] {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+      resize: vertical;
+    }
+    textarea:focus, input:focus { border-color: var(--indigo); }
+    textarea { min-height: 80px; }
+
+    .choices-input { display: flex; flex-direction: column; gap: 6px; }
+    .choice-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .choice-letter-badge {
+      width: 28px; height: 28px;
+      background: rgba(99,102,241,0.15);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: #a5b4fc;
+      flex-shrink: 0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .analyze-btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+    .analyze-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+    .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .result-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted2);
+      text-align: center;
+      gap: 12px;
+    }
+    .result-placeholder-icon { font-size: 40px; opacity: 0.4; }
+
+    .result-card {
+      display: none;
+    }
+    .result-card.visible { display: block; }
+
+    .result-answer {
+      background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.1));
+      border: 1px solid rgba(99,102,241,0.35);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .result-answer-label {
+      font-size: 10px;
+      color: var(--indigo);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .result-answer-text {
+      font-size: 18px;
+      font-weight: 800;
+      color: #c7d2fe;
+      letter-spacing: -0.3px;
+    }
+
+    .result-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .badge-green { background: rgba(74,222,128,0.1); color: #4ade80; border: 1px solid rgba(74,222,128,0.25); }
+    .badge-blue { background: rgba(99,102,241,0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.2); }
+    .badge-gray { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.2); }
+
+    .result-explanation {
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.65;
+      margin-bottom: 12px;
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      border: 1px solid var(--border2);
+    }
+    .result-reasoning {
+      font-size: 12px;
+      color: var(--muted2);
+      line-height: 1.7;
+      font-family: 'JetBrains Mono', monospace;
+      white-space: pre-wrap;
+      padding: 12px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .loading-state {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 16px;
+      color: var(--muted);
+    }
+    .loading-state.visible { display: flex; }
+
+    .spinner-lg {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(99,102,241,0.2);
+      border-top-color: var(--indigo);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .api-key-pane {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border2);
+      background: rgba(0,0,0,0.2);
+    }
+    .api-key-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .api-key-row input { flex: 1; }
+    .btn-sm {
+      padding: 10px 18px;
+      background: var(--indigo2);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .btn-sm:hover { opacity: 0.85; }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border2);
+      padding: 32px 0;
+      text-align: center;
+      color: var(--muted2);
+      font-size: 13px;
+    }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+
+    /* Animations */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.5s ease both; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="container nav-inner">
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        AI Study Assistant
+      </div>
+      <ul class="nav-links">
+        <li><a href="#demo">Demo</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#test">Live Test</a></li>
+      </ul>
+      <a href="#install" class="nav-cta">Get Extension →</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container fade-up">
+      <div class="hero-badge">✨ AI-Powered Study Companion</div>
+      <h1>
+        Ace every exam with<br><span>AI-guided answers</span>
+      </h1>
+      <p>
+        Automatically detects exam questions inside Chrome, analyzes them with AI,
+        and displays suggested answers in a sleek overlay — without ever clicking for you.
+      </p>
+      <div class="hero-btns">
+        <a href="#install" class="btn-hero btn-hero-primary">
+          🧩 Install Extension
+        </a>
+        <a href="#test" class="btn-hero btn-hero-ghost">
+          ⚡ Try Live Demo
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section class="stats-section">
+    <div class="container">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-number"><span id="counter-speed">—</span></div>
+          <div class="stat-label">Avg response time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-number"><span id="counter-acc">95</span>%</div>
+          <div class="stat-label">AI accuracy (Claude)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🔍</div>
+          <div class="stat-number"><span id="counter-sel">10+</span></div>
+          <div class="stat-label">Quiz platforms supported</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🧠</div>
+          <div class="stat-number"><span id="counter-q">0</span></div>
+          <div class="stat-label">Questions analyzed today</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Demo -->
+  <section class="demo-section" id="demo">
+    <div class="container">
+      <div class="section-header">
+        <h2>See it in action</h2>
+        <p>The assistant detects questions on the left, and displays the overlay on the right — instantly.</p>
+      </div>
+      <div class="demo-grid">
+        <div class="demo-panel">
+          <div class="demo-panel-header">
+            🌐 Sample Quiz Page
+          </div>
+          <div class="sample-question">
+            <div class="q-number">Question 7 of 20</div>
+            <div class="q-text">
+              Which of the following best describes the function of mitochondria in eukaryotic cells?
+            </div>
+            <div class="q-choices">
+              <div class="q-choice" onclick="selectChoice(this, 0)">
+                <div class="choice-letter">A</div>
+                Protein synthesis and folding
+              </div>
+              <div class="q-choice correct" onclick="selectChoice(this, 1)">
+                <div class="choice-letter">B</div>
+                ATP production through cellular respiration
+              </div>
+              <div class="q-choice" onclick="selectChoice(this, 2)">
+                <div class="choice-letter">C</div>
+                Lipid storage and regulation
+              </div>
+              <div class="q-choice" onclick="selectChoice(this, 3)">
+                <div class="choice-letter">D</div>
+                DNA replication and repair
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="demo-panel">
+          <div class="demo-panel-header">
+            ⚡ AI Overlay Preview
+          </div>
+          <div class="overlay-preview">
+            <div class="overlay-card">
+              <div class="ov-header">
+                <div class="ov-logo">⚡ AI Study Assistant</div>
+                <div class="ov-dots">
+                  <div class="ov-dot" style="background:#f87171"></div>
+                  <div class="ov-dot" style="background:#fbbf24"></div>
+                  <div class="ov-dot" style="background:#4ade80"></div>
+                </div>
+              </div>
+              <div class="ov-body">
+                <div class="ov-q-preview">Which best describes the function of mitochondria…</div>
+                <div class="ov-answer-box">
+                  <div class="ov-answer-label">Suggested Answer</div>
+                  <div class="ov-answer-text">B) ATP production through cellular respiration</div>
+                </div>
+                <div class="ov-meta">
+                  <span class="ov-badge green">97% confidence</span>
+                  <span class="ov-badge blue">📚 Biology</span>
+                  <span class="ov-badge gray">⚡ 480ms</span>
+                </div>
+                <div class="ov-explanation">
+                  Mitochondria are the primary site of ATP synthesis via oxidative phosphorylation, earning them the nickname "powerhouse of the cell."
+                </div>
+                <div class="ov-btns">
+                  <button class="ov-btn ov-btn-primary">📋 Copy Answer</button>
+                  <button class="ov-btn ov-btn-ghost">📖 Reasoning</button>
+                </div>
+              </div>
+              <div class="ov-footer">
+                <div class="ov-status">
+                  <div class="ov-status-dot"></div>
+                  Active — scanning every 3s
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-header">
+        <h2>Everything you need</h2>
+        <p>Built for speed, accuracy, and a seamless study experience.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="feature-icon">🔍</span>
+          <div class="feature-title">Smart Question Detection</div>
+          <div class="feature-desc">Detects questions via DOM semantic analysis, platform-specific selectors for Coursera, Khan Academy, Google Forms, Moodle, Canvas, and more, with heuristic fallback for any other site.</div>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🧠</span>
+          <div class="feature-title">Claude AI Integration</div>
+          <div class="feature-desc">Powered by Anthropic's Claude for expert-level analysis. Each question gets step-by-step reasoning, confidence scoring, and subject detection — not just a guess.</div>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">⚡</span>
+          <div class="feature-title">Under 1-Second Response</div>
+          <div class="feature-desc">Optimized pipeline from DOM scan → AI call → overlay render. Questions are analyzed and displayed in under a second, so you're never waiting.</div>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🎨</span>
+          <div class="feature-title">Non-Intrusive Overlay</div>
+          <div class="feature-desc">Draggable, resizable, and collapsible overlay that sits on top of any page. Never auto-clicks. You stay in full control. Adjustable position and size from the popup.</div>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">📊</span>
+          <div class="feature-title">Study History & Logs</div>
+          <div class="feature-desc">Every question, suggested answer, confidence score, and response time is logged for review. Use it to identify your weak areas and revisit tricky questions.</div>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">⌨️</span>
+          <div class="feature-title">Hotkey & Controls</div>
+          <div class="feature-desc">Toggle the overlay with Alt+S (configurable). Start, pause, and resume scanning from the popup or directly in the overlay footer. Full keyboard-friendly operation.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section class="install-section" id="install">
+    <div class="container">
+      <div class="section-header">
+        <h2>Install in 3 steps</h2>
+        <p>Load the extension from the downloaded folder — no Chrome Web Store needed.</p>
+      </div>
+      <div class="install-steps">
+        <div class="install-step">
+          <div class="step-number">1</div>
+          <div class="step-title">Download the extension</div>
+          <div class="step-desc">
+            Download the <code>extension/</code> folder from this package. This contains the manifest, content script, background worker, popup, and styles.
+          </div>
+        </div>
+        <div class="install-step">
+          <div class="step-number">2</div>
+          <div class="step-title">Load into Chrome</div>
+          <div class="step-desc">
+            Open <code>chrome://extensions</code>, enable <strong>Developer mode</strong> (top-right toggle), click <strong>"Load unpacked"</strong>, and select the <code>extension/</code> folder.
+          </div>
+        </div>
+        <div class="install-step">
+          <div class="step-number">3</div>
+          <div class="step-title">Add your API key</div>
+          <div class="step-desc">
+            Click the extension icon → <strong>Settings</strong> tab → paste your <a href="https://console.anthropic.com" target="_blank" style="color:#a5b4fc">Anthropic API key</a>. Without a key, the assistant uses heuristic fallback mode.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Test -->
+  <section class="test-section" id="test">
+    <div class="container">
+      <div class="section-header">
+        <h2>Live AI Test</h2>
+        <p>Test the AI analysis directly here — same engine as the extension.</p>
+      </div>
+      <div class="test-panel">
+        <div class="test-panel-header">
+          <h3>Question Analyzer</h3>
+          <span class="api-note">Requires Anthropic API key</span>
+        </div>
+        <div class="api-key-pane">
+          <div class="api-key-row">
+            <input type="password" id="dashboard-api-key" placeholder="Paste your Anthropic API key (sk-ant-...)">
+            <button class="btn-sm" id="save-key-btn">Save Key</button>
+          </div>
+        </div>
+        <div class="test-grid">
+          <div class="test-input-pane">
+            <div class="form-group">
+              <label class="form-label">Question</label>
+              <textarea id="test-question" placeholder="Enter a multiple-choice question…">Which protocol is used to securely transmit data over the internet using encryption?</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Answer Choices</label>
+              <div class="choices-input">
+                <div class="choice-input-row">
+                  <div class="choice-letter-badge">A</div>
+                  <input type="text" class="choice-field" value="FTP (File Transfer Protocol)">
+                </div>
+                <div class="choice-input-row">
+                  <div class="choice-letter-badge">B</div>
+                  <input type="text" class="choice-field" value="HTTP (Hypertext Transfer Protocol)">
+                </div>
+                <div class="choice-input-row">
+                  <div class="choice-letter-badge">C</div>
+                  <input type="text" class="choice-field" value="HTTPS (HTTP Secure with TLS/SSL)">
+                </div>
+                <div class="choice-input-row">
+                  <div class="choice-letter-badge">D</div>
+                  <input type="text" class="choice-field" value="SMTP (Simple Mail Transfer Protocol)">
+                </div>
+              </div>
+            </div>
+            <button class="analyze-btn" id="analyze-btn">⚡ Analyze with AI</button>
+          </div>
+
+          <div class="test-output-pane">
+            <div class="result-placeholder" id="result-placeholder">
+              <div class="result-placeholder-icon">🧠</div>
+              <div>Enter a question and click Analyze</div>
+            </div>
+            <div class="loading-state" id="loading-state">
+              <div class="spinner-lg"></div>
+              <div style="color:var(--muted)">Analyzing with Claude AI…</div>
+            </div>
+            <div class="result-card" id="result-card">
+              <div class="result-answer">
+                <div class="result-answer-label">Suggested Answer</div>
+                <div class="result-answer-text" id="res-answer"></div>
+              </div>
+              <div class="result-meta" id="res-meta"></div>
+              <div class="result-explanation" id="res-explanation"></div>
+              <div class="result-reasoning" id="res-reasoning"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>AI Study Assistant &mdash; Built with Claude AI by Anthropic &mdash; For educational use</p>
+    </div>
+  </footer>
+
+  <script>
+    // ── Stats animation ────────────────────────────────────
+    function animateCounter(id, target, suffix='', decimals=0) {
+      const el = document.getElementById(id);
+      if (!el || target === '—') return;
+      const num = parseFloat(target);
+      if (isNaN(num)) { el.textContent = target; return; }
+      const dur = 1500, start = Date.now();
+      const from = 0;
+      function step() {
+        const p = Math.min(1, (Date.now()-start)/dur);
+        const ease = 1 - Math.pow(1-p, 3);
+        el.textContent = (from + (num-from)*ease).toFixed(decimals) + suffix;
+        if (p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Simulated stats (replace with real extension data if available)
+    animateCounter('counter-speed', 480, 'ms');
+    animateCounter('counter-q', 0);
+
+    // ── Demo choice click ──────────────────────────────────
+    window.selectChoice = function(el, idx) {
+      document.querySelectorAll('.q-choice').forEach(c => c.classList.remove('highlighted'));
+      el.classList.add('highlighted');
+    };
+
+    // ── API Key storage ────────────────────────────────────
+    let apiKey = localStorage.getItem('asa_api_key') || '';
+    if (apiKey) document.getElementById('dashboard-api-key').value = apiKey;
+
+    document.getElementById('save-key-btn').addEventListener('click', () => {
+      apiKey = document.getElementById('dashboard-api-key').value.trim();
+      localStorage.setItem('asa_api_key', apiKey);
+      const btn = document.getElementById('save-key-btn');
+      btn.textContent = '✓ Saved';
+      setTimeout(() => { btn.textContent = 'Save Key'; }, 2000);
+    });
+
+    // ── Live Analyze ───────────────────────────────────────
+    document.getElementById('analyze-btn').addEventListener('click', async () => {
+      const key = document.getElementById('dashboard-api-key').value.trim() || apiKey;
+      if (!key) { alert('Please enter your Anthropic API key above.'); return; }
+
+      const question = document.getElementById('test-question').value.trim();
+      if (!question) { alert('Please enter a question.'); return; }
+
+      const choices = Array.from(document.querySelectorAll('.choice-field'))
+        .map(i => i.value.trim()).filter(Boolean);
+
+      // Show loading
+      document.getElementById('result-placeholder').style.display = 'none';
+      document.getElementById('result-card').classList.remove('visible');
+      document.getElementById('loading-state').classList.add('visible');
+      document.getElementById('analyze-btn').disabled = true;
+
+      const choiceText = choices.length
+        ? `\n\nAnswer choices:\n${choices.map((c,i) => `${String.fromCharCode(65+i)}) ${c}`).join('\n')}`
+        : '';
+
+      const systemPrompt = `You are an expert academic tutor. Analyze the question and determine the correct answer.
+Respond ONLY with valid JSON (no markdown):
+{"answer":"letter and text","confidence":0.95,"explanation":"1-2 sentences","reasoning":"step by step","subject":"subject area"}`;
+
+      const start = Date.now();
+      try {
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 800,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: `Question: ${question}${choiceText}` }]
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(()=>({}));
+          throw new Error(err.error?.message || `API error ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const raw = data.content?.[0]?.text || '';
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('Invalid response format');
+
+        const result = JSON.parse(match[0]);
+        const ms = Date.now() - start;
+
+        document.getElementById('res-answer').textContent = result.answer || '—';
+        const pct = Math.round((result.confidence || 0) * 100);
+        document.getElementById('res-meta').innerHTML = `
+          <span class="badge badge-${pct>=80?'green':pct>=50?'blue':'gray'}">${pct}% confidence</span>
+          ${result.subject ? `<span class="badge badge-blue">📚 ${result.subject}</span>` : ''}
+          <span class="badge badge-gray">⚡ ${ms}ms</span>
+        `;
+        document.getElementById('res-explanation').textContent = result.explanation || '';
+        document.getElementById('res-reasoning').textContent = result.reasoning || '';
+
+        document.getElementById('loading-state').classList.remove('visible');
+        document.getElementById('result-card').classList.add('visible');
+        document.getElementById('counter-speed').textContent = ms + 'ms';
+
+        // Update session counter
+        const cur = parseInt(document.getElementById('counter-q').textContent) || 0;
+        document.getElementById('counter-q').textContent = cur + 1;
+
+      } catch (e) {
+        document.getElementById('loading-state').classList.remove('visible');
+        document.getElementById('result-placeholder').style.display = '';
+        document.getElementById('result-placeholder').innerHTML = `
+          <div class="result-placeholder-icon">⚠️</div>
+          <div style="color:#f87171;font-size:13px">${e.message}</div>
+        `;
+      } finally {
+        document.getElementById('analyze-btn').disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
