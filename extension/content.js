@@ -2,7 +2,7 @@
 // AI Study Assistant — Content Script
 // ============================================================
 // Injected into every page. Detects questions, triggers AI,
-// renders the overlay, never auto-clicks anything.
+// renders the overlay, and can optionally select matched answers.
 // ============================================================
 
 (function () {
@@ -28,7 +28,7 @@
   let mutationMissedDuringPending = false; // track mutations that fired while a request was in flight
   let detectedQuestions = [];   // all questions found on page
   let currentQuestionIndex = 0; // which one is shown
-  let autoSelectEnabled = true;  // auto-select correct answer (on by default)
+  let autoSelectEnabled = false; // auto-select answer when the user turns it on
   let lastDetected = null;       // last detected question+result pair
   let autoSelectTimer = null;
   let analysisGeneration = 0;
@@ -87,7 +87,7 @@
     if (resp?.settings) {
       settings = resp.settings;
       isEnabled = settings.enabled;
-      autoSelectEnabled = settings.autoSelectEnabled !== false;
+      autoSelectEnabled = settings.autoSelectEnabled === true;
     }
 
     createOverlay();
@@ -118,8 +118,9 @@
     if (msg.type === 'SETTINGS_UPDATED') {
       settings = msg.settings;
       isEnabled = settings.enabled;
-      autoSelectEnabled = settings.autoSelectEnabled !== false;
+      autoSelectEnabled = settings.autoSelectEnabled === true;
       applyOverlaySettings();
+      syncAutoSelectUI();
       if (isEnabled) {
         updateActiveUI();
         startScanLoop();
@@ -329,13 +330,18 @@
 
   function toggleAutoSelect() {
     autoSelectEnabled = !autoSelectEnabled;
+    syncAutoSelectUI();
+    sendMessage({ type: 'UPDATE_SETTINGS', settings: { autoSelectEnabled } }).catch(() => {});
+  }
+
+  function syncAutoSelectUI() {
     const btn = document.getElementById('asa-autoselect-toggle');
     const selectNow = document.getElementById('asa-select-now');
+    if (!btn || !selectNow) return;
     btn.textContent = autoSelectEnabled ? 'ON' : 'OFF';
     btn.classList.toggle('on', autoSelectEnabled);
-    // Show "Select Now" button when auto is off (manual trigger)
+    // Show "Select Now" button when auto is off (manual trigger).
     selectNow.style.display = autoSelectEnabled ? 'none' : '';
-    sendMessage({ type: 'UPDATE_SETTINGS', settings: { autoSelectEnabled } });
   }
 
   function autoSelectAnswer({ result, detected } = {}) {
@@ -353,37 +359,36 @@
       .toLowerCase()
       .trim();
 
-    const totalClicks = Math.max(1, Math.floor(settings.autoClickCount || 1));
-    const intervalMs = Math.max(100, Math.round((settings.autoClickIntervalSec || 0.3) * 1000));
+    // Click immediately on first detection. If no matching enabled control is
+    // available yet, retry briefly while SPA-rendered buttons finish mounting.
+    const intervalMs = 300;   // 0.3 seconds between clicks
+    const durationMs = 5000;  // keep clicking for 5 seconds total
+    const maxAttempts = Math.floor(durationMs / intervalMs); // = 16 attempts
 
-    let attempts = 1;
+    let attempts = 0;
     let everClicked = false;
 
     // First click immediately — no delay
     const ok = attemptClick(answerLetter, cleanAnswer, detected);
-    if (ok) { everClicked = true; flashSelectNow('✅ Selected!'); }
+    if (ok) { flashSelectNow('✅ Selected!'); return; }
 
     if (autoSelectTimer) {
       clearInterval(autoSelectTimer);
       autoSelectTimer = null;
     }
 
-    if (totalClicks <= 1) {
-      if (!everClicked) {
-        flashSelectNow('⏱ Too late — click manually', true);
-      }
-      return;
-    }
-
-    // Retry only for the configured number of total attempts.
+    // Then keep checking every 0.3s for the remaining 5 seconds.
     autoSelectTimer = setInterval(() => {
       attempts++;
       const ok = attemptClick(answerLetter, cleanAnswer, detected);
       if (ok) {
         everClicked = true;
         flashSelectNow('✅ Selected!');
+        clearInterval(autoSelectTimer);
+        autoSelectTimer = null;
+        return;
       }
-      if (attempts >= totalClicks) {
+      if (attempts >= maxAttempts) {
         clearInterval(autoSelectTimer);
         autoSelectTimer = null;
         if (!everClicked) {
@@ -428,7 +433,14 @@
       el.querySelectorAll('[class*="answer" i], [class*="option" i]').length === 0 // leaf nodes only
     ).filter(isClickEnabled);
 
-    const allControls = [...standardControls, ...knownContainerControls, ...plainButtons, ...customControls];
+    const interactiveTextControls = getInteractiveTextControls(container);
+    const allControls = uniqueElements([
+      ...standardControls,
+      ...knownContainerControls,
+      ...plainButtons,
+      ...customControls,
+      ...interactiveTextControls
+    ]);
 
     // Strategy 1: match by answer TEXT content first — this is what the AI
     // actually reasoned through and is more trustworthy than the letter it
@@ -445,8 +457,7 @@
 
         // Exact match — highest confidence
         if (labelText === normAnswer) {
-          clickControl(control);
-          return true;
+          return clickControl(control);
         }
 
         // Partial match — score by how much overlap there is, prefer the
@@ -468,8 +479,7 @@
       // Require a reasonably strong partial match (avoid clicking on a
       // near-unrelated button just because of a 2-3 character overlap)
       if (bestMatch && bestScore >= 0.5) {
-        clickControl(bestMatch);
-        return true;
+        return clickControl(bestMatch);
       }
     }
 
@@ -481,21 +491,18 @@
         const targetChoice = normalizeText(detected.choices[idx]);
         const positionalControls = getLikelyChoiceControls(allControls, detected.choices.length);
         if (positionalControls[idx]) {
-          clickControl(positionalControls[idx]);
-          return true;
+          return clickControl(positionalControls[idx]);
         }
         for (const control of allControls) {
           const labelText = normalizeText(getChoiceText(control));
           if (labelText.includes(targetChoice.slice(0, 50)) || targetChoice.includes(labelText.slice(0, 50))) {
-            clickControl(control);
-            return true;
+            return clickControl(control);
           }
         }
         for (const control of customControls) {
           const text = control.textContent.trim();
           if (text.startsWith(answerLetter + ' ') || text.startsWith(answerLetter + '.') || text.startsWith(answerLetter + ')')) {
-            clickControl(control);
-            return true;
+            return clickControl(control);
           }
         }
       }
@@ -506,8 +513,7 @@
       for (const control of customControls) {
         const text = control.textContent.trim();
         if (text.startsWith(answerLetter + ' ') || text.startsWith(answerLetter + '.') || text.startsWith(answerLetter + ')')) {
-          clickControl(control);
-          return true;
+          return clickControl(control);
         }
       }
     }
@@ -518,8 +524,7 @@
       for (const control of plainButtons) {
         const btnText = normalizeText(control.textContent);
         if (btnText === normAnswer || btnText.includes(normAnswer) || normAnswer.includes(btnText)) {
-          clickControl(control);
-          return true;
+          return clickControl(control);
         }
       }
     }
@@ -549,6 +554,35 @@
       if (choices.length >= expectedCount) break;
     }
     return choices;
+  }
+
+  function getInteractiveTextControls(container) {
+    return Array.from(container.querySelectorAll(
+      'button, [role="button"], [onclick], [tabindex], a[href], input[type="button"], input[type="submit"], div, span, li'
+    )).filter(el => {
+      if (!isVisible(el) || !isClickEnabled(el) || el.closest('#asa-overlay')) return false;
+      const text = cleanText(el.textContent || el.value || el.getAttribute?.('aria-label') || '');
+      if (text.length < 1 || text.length > 300) return false;
+      const style = window.getComputedStyle(el);
+      const role = el.getAttribute?.('role');
+      const naturallyClickable = /^(BUTTON|A|INPUT|LABEL)$/i.test(el.tagName);
+      return naturallyClickable ||
+        role === 'button' ||
+        el.hasAttribute?.('onclick') ||
+        el.hasAttribute?.('tabindex') ||
+        style.cursor === 'pointer';
+    });
+  }
+
+  function uniqueElements(elements) {
+    const seen = new Set();
+    const out = [];
+    for (const el of elements) {
+      if (!el || seen.has(el)) continue;
+      seen.add(el);
+      out.push(el);
+    }
+    return out;
   }
 
   function normalizeText(str) {
@@ -602,17 +636,68 @@
 
   function clickControl(el) {
     suppressNavigationClickUntil = Date.now() + 1500;
-    if (el.tagName === 'INPUT') {
-      el.click();
-      el.dispatchEvent(new MouseEvent('change', { bubbles: true }));
+    const target = getBestClickableTarget(el);
+    if (!target || !isClickEnabled(target)) return false;
+
+    const rect = target.getBoundingClientRect();
+    const x = Math.max(0, Math.min(window.innerWidth - 1, rect.left + rect.width / 2));
+    const y = Math.max(0, Math.min(window.innerHeight - 1, rect.top + rect.height / 2));
+    const eventTarget = document.elementFromPoint(x, y) || target;
+    const clickTarget = eventTarget.closest?.('button, [role="button"], [onclick], label, a[href], input, [tabindex]') || target;
+
+    focusControl(clickTarget);
+
+    if (clickTarget.tagName === 'INPUT') {
+      if (clickTarget.type === 'radio' || clickTarget.type === 'checkbox') {
+        clickTarget.checked = true;
+      }
+      dispatchPointerSequence(clickTarget, x, y);
+      clickTarget.click();
+      clickTarget.dispatchEvent(new Event('input', { bubbles: true }));
+      clickTarget.dispatchEvent(new Event('change', { bubbles: true }));
     } else {
-      // Fire full mouse event sequence for React/JSX sites
-      el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-      el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      el.click();
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      dispatchPointerSequence(clickTarget, x, y);
+      clickTarget.click();
     }
+    return true;
+  }
+
+  function getBestClickableTarget(el) {
+    if (!el) return null;
+    return el.closest?.('button, [role="button"], [onclick], label, a[href], input, [tabindex]') || el;
+  }
+
+  function focusControl(el) {
+    try {
+      if (typeof el.focus === 'function') el.focus({ preventScroll: true });
+    } catch (_) {}
+  }
+
+  function dispatchPointerSequence(el, x, y) {
+    const common = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: x,
+      clientY: y,
+      screenX: x,
+      screenY: y,
+      button: 0,
+      buttons: 1
+    };
+    if (typeof PointerEvent === 'function') {
+      el.dispatchEvent(new PointerEvent('pointerover', { ...common, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      el.dispatchEvent(new PointerEvent('pointerenter', { ...common, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      el.dispatchEvent(new PointerEvent('pointerdown', { ...common, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+    }
+    el.dispatchEvent(new MouseEvent('mouseover', common));
+    el.dispatchEvent(new MouseEvent('mouseenter', common));
+    el.dispatchEvent(new MouseEvent('mousedown', common));
+    if (typeof PointerEvent === 'function') {
+      el.dispatchEvent(new PointerEvent('pointerup', { ...common, pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: 0 }));
+    }
+    el.dispatchEvent(new MouseEvent('mouseup', { ...common, buttons: 0 }));
+    el.dispatchEvent(new MouseEvent('click', { ...common, buttons: 0 }));
   }
 
   // ── Bulk Answers ───────────────────────────────────────────
@@ -763,6 +848,9 @@
       if (question && choices.length >= 2) addIfNew(buildResult(question, choices, getContext(container || groupControls[0])));
     }
 
+    // Strategy 1b: result/review cards where the page already displays the answer.
+    for (const q of detectKnownAnswerSummaries()) addIfNew(q);
+
     // Strategy 2: platform selectors — each matching question element
     for (const sel of QUIZ_SELECTORS) {
       const qEls = document.querySelectorAll(sel.q);
@@ -822,6 +910,62 @@
     }
 
     return bestCandidate(candidates);
+  }
+
+  function detectKnownAnswerSummaries() {
+    const candidates = [];
+    const nodes = getVisibleElements('section, article, li, [class*="card" i], [class*="result" i], [class*="question" i], div')
+      .filter(el => !el.closest('#asa-overlay'))
+      .slice(0, 120);
+
+    for (const node of nodes) {
+      const text = getElementText(node);
+      if (!/\bCorrect answer\s*:/i.test(text)) continue;
+      if (text.length > 1200) continue;
+      if ((text.match(/\bCorrect answer\s*:/ig) || []).length > 1) continue;
+
+      const correct = extractLabelValue(text, 'Correct answer', ['Your answer', 'Question', 'Total Score']);
+      if (!correct || correct.length > 200) continue;
+
+      const yourAnswer = extractLabelValue(text, 'Your answer', ['Correct answer', 'Question', 'Total Score']);
+      const question = extractReviewQuestion(text);
+      if (!question) continue;
+
+      const choices = uniqueClean([correct, yourAnswer].filter(Boolean)).filter(isGoodChoice);
+      const context = `KNOWN_CORRECT_ANSWER: ${correct}\n${text}`;
+      candidates.push({
+        score: scoreDetection(question, choices.length ? choices : [correct], node) + 30,
+        result: buildResult(question, choices.length ? choices : [correct], context)
+      });
+    }
+
+    return candidates
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20)
+      .map(c => c.result);
+  }
+
+  function extractLabelValue(text, label, stopLabels = []) {
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const stops = stopLabels.map(s => {
+      if (/^question$/i.test(s)) return 'Question\\s+\\d+\\b';
+      return `${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`;
+    });
+    const stopPattern = stops.length ? `(?=\\s+(?:${stops.join('|')})|$)` : '$';
+    const match = String(text || '').match(new RegExp(`${escapedLabel}\\s*:\\s*(.+?)${stopPattern}`, 'i'));
+    return match ? cleanChoiceText(match[1]) : '';
+  }
+
+  function extractReviewQuestion(text) {
+    const beforeYourAnswer = String(text || '').split(/\bYour answer\s*:/i)[0] || '';
+    let cleaned = beforeYourAnswer
+      .replace(/\bQuestion\s*\d+\b/ig, ' ')
+      .replace(/\b(Correct|Incorrect)\b/ig, ' ')
+      .replace(/\b\d+\s*pts\b/ig, ' ')
+      .replace(/\b\d+(?:\.\d+)?s\b/ig, ' ');
+    cleaned = cleanQuestionText(cleaned);
+    if (!cleaned || cleaned.length < 8) return '';
+    return cleaned.length > 800 ? cleaned.slice(-800) : cleaned;
   }
 
   const QUIZ_SELECTORS = [
@@ -1299,6 +1443,7 @@
 
     overlay = document.createElement('div');
     overlay.id = 'asa-overlay';
+    overlay.dataset.size = settings.overlaySize || 'medium';
     overlay.innerHTML = `
       <div class="asa-header">
         <div class="asa-logo">
@@ -1343,9 +1488,9 @@
           <div class="asa-autoselect-bar">
             <label class="asa-autoselect-label">
               <span>Auto-select answer</span>
-              <button class="asa-toggle-sm on" id="asa-autoselect-toggle">ON</button>
+              <button class="asa-toggle-sm" id="asa-autoselect-toggle">OFF</button>
             </label>
-            <button class="asa-btn asa-btn-sm" id="asa-select-now" style="display:none">👆 Select Now</button>
+            <button class="asa-btn asa-btn-sm" id="asa-select-now">👆 Select Now</button>
           </div>
           <div class="asa-reasoning" id="asa-reasoning" style="display:none"></div>
         </div>
@@ -1375,7 +1520,8 @@
         </div>
         <div class="asa-rescan" style="display:flex;gap:4px">
           <button class="asa-btn asa-btn-sm asa-btn-stop" id="asa-force-stop">Stop AI</button>
-          <button class="asa-btn asa-btn-sm" id="asa-bulk-btn"># Jump</button>
+          <button class="asa-btn asa-btn-sm" id="asa-bulk-btn">All</button>
+          <button class="asa-btn asa-btn-sm" id="asa-jump-btn"># Jump</button>
           <button class="asa-btn asa-btn-sm" id="asa-rescan">↻ Rescan</button>
         </div>
       </div>
@@ -1384,6 +1530,7 @@
     applyPosition(overlay, settings.overlayPosition || 'top-right');
     document.body.appendChild(overlay);
     addResizeHandles();
+    syncAutoSelectUI();
 
     // Events
     document.getElementById('asa-toggle').addEventListener('click', toggleEnabled);
@@ -1400,7 +1547,8 @@
     document.getElementById('asa-autoselect-toggle').addEventListener('click', toggleAutoSelect);
     document.getElementById('asa-select-now').addEventListener('click', () => autoSelectAnswer(lastDetected));
     document.getElementById('asa-force-stop').addEventListener('click', toggleForceStop);
-    document.getElementById('asa-bulk-btn').addEventListener('click', toggleJumpPanel);
+    document.getElementById('asa-bulk-btn').addEventListener('click', runBulkAnswers);
+    document.getElementById('asa-jump-btn').addEventListener('click', toggleJumpPanel);
     document.getElementById('asa-bulk-copy').addEventListener('click', copyBulkAnswers);
     document.getElementById('asa-jump-go').addEventListener('click', jumpToQuestion);
     document.getElementById('asa-jump-input').addEventListener('keydown', e => {
@@ -1434,6 +1582,7 @@
     el.style.removeProperty('bottom');
     el.style.removeProperty('left');
     el.style.removeProperty('right');
+    el.style.removeProperty('transform');
     const map = {
       'top-right':    { top: '20px', right: '20px' },
       'top-left':     { top: '20px', left: '20px' },
@@ -1793,14 +1942,7 @@
         return;
       }
       // Configurable hotkey (default Alt+S) — toggle
-      const hotkey = settings.hotkey || 'Alt+S';
-      const [mod, key] = hotkey.split('+');
-      if (
-        ((mod === 'Alt' && e.altKey) ||
-         (mod === 'Ctrl' && e.ctrlKey) ||
-         (mod === 'Shift' && e.shiftKey)) &&
-        e.key.toUpperCase() === key.toUpperCase()
-      ) {
+      if (matchesHotkey(e, settings.hotkey || 'Alt+S')) {
         e.preventDefault();
         if (overlay.style.display === 'none') {
           overlay.style.display = '';
@@ -1809,6 +1951,18 @@
         }
       }
     });
+  }
+
+  function matchesHotkey(e, hotkey) {
+    const parts = String(hotkey || '').split('+').map(p => p.trim()).filter(Boolean);
+    const key = parts.pop();
+    if (!key) return false;
+    const required = new Set(parts.map(p => p.toLowerCase()));
+    if (required.has('alt') !== e.altKey) return false;
+    if (required.has('ctrl') !== e.ctrlKey) return false;
+    if (required.has('shift') !== e.shiftKey) return false;
+    if (required.has('meta') !== e.metaKey) return false;
+    return e.key.toUpperCase() === key.toUpperCase();
   }
 
   // ── Messaging ─────────────────────────────────────────────

@@ -6,21 +6,19 @@
 const DEFAULT_SETTINGS = {
   enabled: true,
   scanInterval: 3000,
-  autoClickCount: 1,
-  autoClickIntervalSec: 0.3,
-  autoSelectEnabled: true,
   overlayPosition: 'top-right',
   overlaySize: 'medium',
   activeProvider: 'gemini',
   providers: {
     anthropic: { apiKey: '', model: 'claude-sonnet-4-20250514' },
     openai:    { apiKey: '', model: 'gpt-4o-mini' },
-    gemini:    { apiKey: '', model: 'gemini-3.1-flash-lite' },
+    gemini:    { apiKey: '', model: 'gemini-2.5-flash-lite' },
     groq:      { apiKey: '', model: 'llama-3.3-70b-versatile' }
   },
   multiTab: false,
   hotkey: 'Alt+S',
   showConfidence: true,
+  autoSelectEnabled: false,
   autoHideDelay: 0,
   logHistory: true,
   theme: 'dark'
@@ -70,7 +68,7 @@ function deepMerge(defaults, overrides) {
 function normalizeProviderModels(settingsObj) {
   const replacements = {
     gemini: {
-      // Empty — user's model choice is respected, no forced overrides
+      'gemini-3.1-flash-lite-preview': 'gemini-3.1-flash-lite'
     },
     groq: {
       'llama3-70b-8192': 'llama-3.3-70b-versatile',
@@ -180,6 +178,33 @@ async function analyzeQuestion(payload, tabId) {
     ? '\n\nAnswer choices:\n' + choices.map((c, i) => `${String.fromCharCode(65+i)}) ${c}`).join('\n')
     : '';
   const contextText = context ? '\nContext: ' + context.slice(0, 500) : '';
+
+  const knownAnswer = extractKnownCorrectAnswer(context);
+  if (knownAnswer) {
+    const responseTime = Date.now() - start;
+    const result = {
+      answer: knownAnswer,
+      confidence: 1,
+      explanation: 'The page already shows this as the correct answer.',
+      reasoning: 'Detected from visible result review text.',
+      subject: 'Review'
+    };
+    if (settings.logHistory) {
+      addLogEntry({
+        timestamp: new Date().toISOString(),
+        question: question.slice(0, 200),
+        choices,
+        answer: result.answer,
+        confidence: result.confidence,
+        explanation: result.explanation,
+        subject: result.subject,
+        provider: 'page',
+        responseTime,
+        url: url || ''
+      });
+    }
+    return { ...result, responseTime, provider: 'page' };
+  }
 
   const isBulk = context && context.includes('Give ONLY the answer letter');
   const systemPrompt = isBulk
@@ -342,7 +367,7 @@ async function callOpenAI(apiKey, model, systemPrompt, userPrompt, signal) {
 }
 
 async function callGemini(apiKey, model, systemPrompt, userPrompt, signal) {
-  const m = model || 'gemini-2.5-flash';
+  const m = model || 'gemini-2.5-flash-lite';
   const resp = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`,
     {
@@ -370,7 +395,7 @@ async function callGemini(apiKey, model, systemPrompt, userPrompt, signal) {
   }
   // The API is now forced to return clean JSON due to response_mime_type
   const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-  const parsed = JSON.parse(rawText);
+  const parsed = parseJSON(rawText);
   if (!parsed.answer) {
     throw new Error('Gemini returned an empty response — model may be overloaded or blocked by safety filters');
   }
@@ -432,8 +457,9 @@ function patternBasedAnalysis(question, choices) {
     bestIdx = choices.reduce((bi, c, i) => c.length > choices[bi].length ? i : bi, 0);
   }
 
-  const letter = choices ? String.fromCharCode(65 + bestIdx) : '—';
-  const answer = choices ? `${letter}) ${choices[bestIdx]}` : 'Add an API key for AI answers';
+  const hasChoices = Array.isArray(choices) && choices.length > 0;
+  const letter = hasChoices ? String.fromCharCode(65 + bestIdx) : '—';
+  const answer = hasChoices ? `${letter}) ${choices[bestIdx]}` : 'Add an API key for AI answers';
 
   return {
     answer,
@@ -442,6 +468,11 @@ function patternBasedAnalysis(question, choices) {
     reasoning: 'Heuristic fallback (longest answer selected).',
     subject: 'Unknown'
   };
+}
+
+function extractKnownCorrectAnswer(context) {
+  const match = String(context || '').match(/KNOWN_CORRECT_ANSWER:\s*(.+?)(?:\n|$)/i);
+  return match ? match[1].trim() : '';
 }
 
 // ── Helpers ───────────────────────────────────────────────────

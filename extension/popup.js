@@ -105,11 +105,8 @@ function applySettingsToUI() {
   setVal('overlay-position', settings.overlayPosition || 'top-right');
   setVal('overlay-size', settings.overlaySize || 'medium');
   setVal('scan-interval', (settings.scanInterval || 3000) / 1000);
-  setVal('auto-click-count', settings.autoClickCount || 1);
-  setVal('auto-click-interval', settings.autoClickIntervalSec || 0.3);
   setVal('hotkey', settings.hotkey || 'Alt+S');
   updateIntervalLabel();
-  updateAutoClickLabel();
 }
 
 // ── Controls ──────────────────────────────────────────────────
@@ -117,7 +114,6 @@ function setupEvents() {
   document.getElementById('toggle-enabled').addEventListener('click', e => e.currentTarget.classList.toggle('on'));
   document.getElementById('toggle-log').addEventListener('click', e => e.currentTarget.classList.toggle('on'));
   document.getElementById('scan-interval').addEventListener('input', updateIntervalLabel);
-  document.getElementById('auto-click-interval').addEventListener('input', updateAutoClickLabel);
 
   document.getElementById('save-controls').addEventListener('click', async () => {
     const newSettings = {
@@ -126,8 +122,6 @@ function setupEvents() {
       overlayPosition: getVal('overlay-position'),
       overlaySize: getVal('overlay-size'),
       scanInterval: Math.round(parseFloat(getVal('scan-interval')) * 1000),
-      autoClickCount: Math.max(1, Math.round(parseFloat(getVal('auto-click-count')) || 1)),
-      autoClickIntervalSec: Math.max(0.1, parseFloat(getVal('auto-click-interval')) || 0.3),
       hotkey: getVal('hotkey')
     };
     await msg({ type: 'UPDATE_SETTINGS', settings: newSettings });
@@ -199,10 +193,6 @@ function updateStatusBar() {
 function updateIntervalLabel() {
   const val = parseFloat(getVal('scan-interval'));
   document.getElementById('interval-val').textContent = val + 's';
-}
-function updateAutoClickLabel() {
-  const val = parseFloat(getVal('auto-click-interval'));
-  document.getElementById('auto-click-interval-val').textContent = val + 's';
 }
 function showNotice(id) {
   const el = document.getElementById(id);
